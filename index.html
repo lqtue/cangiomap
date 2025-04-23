@@ -18,33 +18,30 @@
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-  // Define geographic bounds (in LatLng) based on your GeoTIFF corners
+  // Define raster bounds (from your GeoTIFF metadata)
   var rasterBounds = L.latLngBounds(
-    [10.3362, 106.8605],  // Southwest corner (lower-left)
-    [10.4206, 107.0123]   // Northeast corner (upper-right)
+    [10.3362, 106.8605],  // Southwest (bottom-left)
+    [10.4206, 107.0123]   // Northeast (top-right)
   );
 
-  // Initialize the map with bounds and zoom restrictions
+  // Initialize map
   var map = L.map('map', {
-    maxBounds: rasterBounds,
-    maxBoundsViscosity: 1.0,  // Prevents panning outside
+    zoomControl: true,
     minZoom: 10,
     maxZoom: 16,
-    zoomSnap: 1
-  });
+    maxBounds: rasterBounds,
+    maxBoundsViscosity: 1.0 // Prevents dragging outside
+  }).fitBounds(rasterBounds); // Automatically fit to bounds
 
-  // Fit the map to your raster bounds on load
-  map.fitBounds(rasterBounds);
-
-  // Add ESRI World Imagery base map
+  // Base layer: ESRI World Imagery
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; ESRI, NASA, NGA',
     maxZoom: 19
   }).addTo(map);
 
-  // Add your GitHub-hosted tile overlay
+  // Overlay: GitHub-hosted custom tiles
   L.tileLayer('https://lqtue.github.io/cangiomap/tiles/{z}/{x}/{y}.png', {
-    attribution: 'Overlay: Cangio map tiles',
+    attribution: 'Overlay &copy; Cangio Project',
     minZoom: 10,
     maxZoom: 16,
     opacity: 0.75,

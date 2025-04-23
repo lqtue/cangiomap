@@ -11,42 +11,175 @@
       margin: 0;
       padding: 0;
     }
+    .debug-panel {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      z-index: 1000;
+      max-width: 300px;
+      max-height: 200px;
+      overflow: auto;
+      font-family: monospace;
+      font-size: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    .control-box {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      z-index: 1000;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    .control-item {
+      margin-bottom: 5px;
+    }
+    .control-item label {
+      display: block;
+      margin-bottom: 3px;
+    }
+    .control-item select, .control-item input {
+      width: 100%;
+    }
   </style>
 </head>
 <body>
 <div id="map"></div>
+<div class="debug-panel" id="debug-panel">Loading map...</div>
+<div class="control-box">
+  <div class="control-item">
+    <label for="opacity-control">Overlay Opacity:</label>
+    <input type="range" id="opacity-control" min="0" max="1" step="0.05" value="0.75">
+  </div>
+  <div class="control-item">
+    <label for="coordinate-system">Coordinate System:</label>
+    <select id="coordinate-system">
+      <option value="xyz">XYZ (Standard)</option>
+      <option value="tms">TMS (Inverted Y)</option>
+    </select>
+  </div>
+  <div class="control-item">
+    <label for="url-pattern">URL Pattern:</label>
+    <select id="url-pattern">
+      <option value="z-x-y">/{z}/{x}/{y}.png</option>
+      <option value="z-y-x">/{z}/{y}/{x}.png</option>
+    </select>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
+  // Debug functions
+  var debugPanel = document.getElementById('debug-panel');
+  function logDebug(message) {
+    debugPanel.innerHTML += message + '<br>';
+    debugPanel.scrollTop = debugPanel.scrollHeight;
+  }
+  
+  // Clear debug panel
+  debugPanel.innerHTML = '';
+  
   // Define raster bounds (from your GeoTIFF metadata)
   var rasterBounds = L.latLngBounds(
     [10.3362, 106.8605],  // Southwest (bottom-left)
     [10.4206, 107.0123]   // Northeast (top-right)
   );
-
+  
+  logDebug('Bounds: ' + rasterBounds.toBBoxString());
+  
   // Initialize map
   var map = L.map('map', {
     zoomControl: true,
     minZoom: 10,
     maxZoom: 16,
-    maxBounds: rasterBounds,
-    maxBoundsViscosity: 1.0 // Prevents dragging outside
+    maxBounds: rasterBounds.pad(0.1),
+    maxBoundsViscosity: 0.9 // Prevents dragging outside
   }).fitBounds(rasterBounds); // Automatically fit to bounds
-
+  
   // Base layer: ESRI World Imagery
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  var baseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; ESRI, NASA, NGA',
     maxZoom: 19
   }).addTo(map);
-
-  // Overlay: GitHub-hosted custom tiles
-  L.tileLayer('https://lqtue.github.io/cangiomap/tiles/{z}/{x}/{y}.png', {
-    attribution: 'Overlay &copy; Cangio Project',
-    minZoom: 10,
-    maxZoom: 16,
-    opacity: 0.75,
-    errorTileUrl: 'https://via.placeholder.com/256/ffcccc?text=No+Tile'
-  }).addTo(map);
+  
+  logDebug('Base layer added');
+  
+  // Create overlay layer variable to reference later
+  var overlayLayer;
+  
+  // Function to update overlay based on settings
+  function updateOverlay() {
+    // Remove existing overlay if any
+    if (overlayLayer) {
+      map.removeLayer(overlayLayer);
+      logDebug('Removed previous overlay');
+    }
+    
+    // Get current settings
+    var opacity = document.getElementById('opacity-control').value;
+    var coordinateSystem = document.getElementById('coordinate-system').value;
+    var urlPattern = document.getElementById('url-pattern').value;
+    
+    // Build URL based on pattern selection
+    var url;
+    if (urlPattern === 'z-x-y') {
+      url = 'https://lqtue.github.io/cangiomap/tiles/{z}/{x}/{y}.png';
+    } else {
+      url = 'https://lqtue.github.io/cangiomap/tiles/{z}/{y}/{x}.png';
+    }
+    
+    logDebug('Creating overlay with URL: ' + url);
+    logDebug('TMS: ' + (coordinateSystem === 'tms'));
+    logDebug('Opacity: ' + opacity);
+    
+    // Create new overlay
+    overlayLayer = L.tileLayer(url, {
+      attribution: 'Overlay &copy; Cangio Project',
+      minZoom: 10,
+      maxZoom: 16,
+      opacity: parseFloat(opacity),
+      tms: (coordinateSystem === 'tms'),
+      errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+    }).addTo(map);
+    
+    // Add event listeners for the new layer
+    overlayLayer.on('loading', function() {
+      logDebug('Overlay loading...');
+    });
+    
+    overlayLayer.on('load', function() {
+      logDebug('Overlay loaded');
+    });
+    
+    overlayLayer.on('tileerror', function(error) {
+      logDebug('Tile error: ' + error.url);
+    });
+  }
+  
+  // Add event listeners to controls
+  document.getElementById('opacity-control').addEventListener('input', updateOverlay);
+  document.getElementById('coordinate-system').addEventListener('change', updateOverlay);
+  document.getElementById('url-pattern').addEventListener('change', updateOverlay);
+  
+  // Initial load of overlay
+  updateOverlay();
+  
+  // Add map event listeners for debugging
+  map.on('moveend', function() {
+    var center = map.getCenter();
+    var zoom = map.getZoom();
+    logDebug('Map moved: ' + center.lat.toFixed(4) + ', ' + center.lng.toFixed(4) + ' (zoom: ' + zoom + ')');
+  });
+  
+  // Debug info about current view
+  var center = map.getCenter();
+  var zoom = map.getZoom();
+  logDebug('Initial view: ' + center.lat.toFixed(4) + ', ' + center.lng.toFixed(4) + ' (zoom: ' + zoom + ')');
 </script>
 </body>
 </html>

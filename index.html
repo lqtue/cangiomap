@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>ESRI + Custom Tiles</title>
+  <title>Cangio Overlay on ESRI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
@@ -18,27 +18,33 @@
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-  // Initialize map
+  // Define geographic bounds (in LatLng) based on your GeoTIFF corners
+  var rasterBounds = L.latLngBounds(
+    [10.3362, 106.8605],  // Southwest corner (lower-left)
+    [10.4206, 107.0123]   // Northeast corner (upper-right)
+  );
+
+  // Initialize the map with bounds and zoom restrictions
   var map = L.map('map', {
-    zoomControl: true
+    maxBounds: rasterBounds,
+    maxBoundsViscosity: 1.0,  // Prevents panning outside
+    minZoom: 10,
+    maxZoom: 16,
+    zoomSnap: 1
   });
 
-  // Fit map to your raster bounds (SW and NE corners)
-  var bounds = L.latLngBounds(
-    [10.3362, 106.8605], // Southwest corner (lower-left)
-    [10.4206, 107.0123]  // Northeast corner (upper-right)
-  );
-  map.fitBounds(bounds);
+  // Fit the map to your raster bounds on load
+  map.fitBounds(rasterBounds);
 
-  // ESRI base layer
+  // Add ESRI World Imagery base map
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; ESRI, NASA, NGA',
     maxZoom: 19
   }).addTo(map);
 
-  // Your overlay tiles
+  // Add your GitHub-hosted tile overlay
   L.tileLayer('https://lqtue.github.io/cangiomap/tiles/{z}/{x}/{y}.png', {
-    attribution: 'Cangio overlay',
+    attribution: 'Overlay: Cangio map tiles',
     minZoom: 10,
     maxZoom: 16,
     opacity: 0.75,

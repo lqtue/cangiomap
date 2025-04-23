@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Cangio MBTiles Viewer</title>
+  <title>Cangio Map with Precise Bounds</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
@@ -25,129 +25,270 @@
       width: 100%;
       margin-top: 5px;
     }
-    .status-message {
+    .info-panel {
       position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255,255,255,0.8);
+      bottom: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
       padding: 10px;
       border-radius: 4px;
-      z-index: 1000;
       box-shadow: 0 1px 5px rgba(0,0,0,0.4);
       font-family: Arial, sans-serif;
+      max-width: 300px;
+      font-size: 12px;
+    }
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 20px;
+      border-radius: 5px;
+      z-index: 1000;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
     }
   </style>
 </head>
 <body>
 <div id="map"></div>
-<div id="status" class="status-message">Loading map...</div>
+<div id="loading" class="loading">Initializing map and detecting tile bounds...</div>
 <div class="control-container">
   <div>
     <label for="opacity-slider">Overlay Opacity: <span id="opacity-value">0.75</span></label>
     <input type="range" id="opacity-slider" class="opacity-control" min="0" max="1" step="0.05" value="0.75">
   </div>
 </div>
+<div class="info-panel" id="info-panel"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-  // Define status update function
-  const statusElement = document.getElementById('status');
-  function updateStatus(message) {
-    statusElement.textContent = message;
-  }
-
-  // Define raster bounds (from your GeoTIFF metadata)
-  var rasterBounds = L.latLngBounds(
+  // Initialize variables
+  var map, baseLayer, overlayLayer;
+  var loadingElement = document.getElementById('loading');
+  var infoPanel = document.getElementById('info-panel');
+  
+  // Known tile bounds for zoom level 12 (adjust these if you know exact values)
+  // These will be refined based on actual tile availability
+  var initialBounds = L.latLngBounds(
     [10.3362, 106.8605],  // Southwest (bottom-left)
     [10.4206, 107.0123]   // Northeast (top-right)
   );
   
-  // Initialize map
-  var map = L.map('map', {
+  // Initialize the map
+  map = L.map('map', {
     zoomControl: true,
     minZoom: 10,
     maxZoom: 16,
-    maxBounds: rasterBounds.pad(0.1),
     maxBoundsViscosity: 0.9
-  }).fitBounds(rasterBounds);
+  }).fitBounds(initialBounds);
   
   // Base layer: ESRI World Imagery
-  var baseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  baseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; ESRI, NASA, NGA',
     maxZoom: 19
   }).addTo(map);
   
-  updateStatus("Base map loaded. Setting up overlay...");
-
-  // Option 1: Use a public MBTiles server API (if available)
-  // This is a placeholder - you would need a service that accepts an MBTiles URL and serves tiles
-  // var tileServerUrl = `https://mbtiles-server.example.com/tiles?source=${encodeURIComponent('https://github.com/lqtue/cangiomap/raw/main/OUTPUT_FILE.mbtiles')}&z={z}&x={x}&y={y}`;
+  // Show initial info
+  infoPanel.innerHTML = "Loading and detecting available tiles...";
   
-  // Option 2: Use GitHub Pages if tiles have been extracted
-  var overlayUrl = 'https://lqtue.github.io/cangiomap/tiles/{z}/{x}/{y}.png';
-  
-  // Option 3: Use a proxy service or serverless function
-  // var proxyUrl = 'https://your-serverless-function.com/mbtiles-proxy?z={z}&x={x}&y={y}';
-  
-  // Create overlay layer
-  var overlayLayer = L.tileLayer(overlayUrl, {
-    attribution: 'Overlay &copy; Cangio Project',
-    minZoom: 10,
-    maxZoom: 16,
-    opacity: 0.75,
-    errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
-  });
-  
-  // Add layer control
-  var baseMaps = {
-    "ESRI Satellite": baseLayer
-  };
-  
-  var overlayMaps = {
-    "Cangio Overlay": overlayLayer
-  };
-  
-  L.control.layers(baseMaps, overlayMaps).addTo(map);
-  
-  // Add the overlay to the map
-  overlayLayer.addTo(map);
-  
-  // Event handlers for overlay
-  overlayLayer.on('loading', function() {
-    updateStatus("Loading overlay tiles...");
-  });
-  
-  overlayLayer.on('load', function() {
-    updateStatus("Map loaded successfully.");
-    setTimeout(() => {
-      statusElement.style.display = 'none';
-    }, 2000);
-  });
-  
-  overlayLayer.on('tileerror', function(error) {
-    console.error("Tile error:", error);
-    updateStatus("Error loading some tiles. Check console for details.");
-  });
-  
-  // Opacity control
-  var opacitySlider = document.getElementById('opacity-slider');
-  var opacityValue = document.getElementById('opacity-value');
-  
-  opacitySlider.addEventListener('input', function() {
-    var value = this.value;
-    overlayLayer.setOpacity(value);
-    opacityValue.textContent = value;
-  });
-  
-  // Instructions for actual MBTiles usage
-  console.log(`
-    NOTE: To properly use an MBTiles file, you need to:
-    1. Either extract it to static tiles (XYZ format)
-    2. Or use a server that can serve MBTiles dynamically
+  // Tile availability detection
+  function findAvailableTiles() {
+    // Define possible tile ranges for zoom level 12
+    var zoom = 12;
     
-    The direct GitHub URL to the MBTiles file cannot be used directly with Leaflet.
-  `);
+    // Convert lat/lng bounds to tile coordinates
+    function latLngToTile(lat, lng, zoom) {
+      var n = Math.pow(2, zoom);
+      var x = Math.floor((lng + 180) / 360 * n);
+      var y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n);
+      return { x: x, y: y };
+    }
+    
+    // Convert tile coordinates to lat/lng
+    function tileToLatLng(x, y, zoom) {
+      var n = Math.pow(2, zoom);
+      var lng = x / n * 360 - 180;
+      var lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+      return { lat: lat, lng: lng };
+    }
+    
+    // Calculate tile ranges based on initial bounds
+    var sw = latLngToTile(initialBounds.getSouth(), initialBounds.getWest(), zoom);
+    var ne = latLngToTile(initialBounds.getNorth(), initialBounds.getEast(), zoom);
+    
+    // Log estimated tile range
+    console.log("Estimated tile range at zoom " + zoom + ":", 
+      "X: " + sw.x + "-" + ne.x, 
+      "Y: " + ne.y + "-" + sw.y);
+    
+    // Expand search range slightly
+    var expandBy = 1;
+    var minX = Math.max(0, sw.x - expandBy);
+    var maxX = ne.x + expandBy;
+    var minY = Math.max(0, ne.y - expandBy);
+    var maxY = sw.y + expandBy;
+    
+    // Known tile coordinates from previous errors or tests
+    // These help narrow down the search faster
+    var knownTiles = [
+      { x: 3266, y: 1927, zoom: 12 },
+      { x: 3267, y: 1927, zoom: 12 },
+      { x: 3266, y: 1928, zoom: 12 },
+      { x: 3267, y: 1928, zoom: 12 }
+    ];
+    
+    // Function to check if a tile exists
+    function checkTileExists(x, y, zoom, callback) {
+      var img = new Image();
+      img.onload = function() {
+        if (img.width > 0) {
+          callback(true);
+        } else {
+          callback(false);
+        }
+      };
+      img.onerror = function() {
+        callback(false);
+      };
+      img.src = `https://lqtue.github.io/cangiomap/tiles/${zoom}/${x}/${y}.png`;
+    }
+    
+    // Check known tiles first
+    var foundTiles = [];
+    var totalChecked = 0;
+    var totalToCheck = knownTiles.length;
+    
+    function checkNextKnownTile(index) {
+      if (index >= knownTiles.length) {
+        // Finished checking known tiles
+        finalizeBounds();
+        return;
+      }
+      
+      var tile = knownTiles[index];
+      checkTileExists(tile.x, tile.y, tile.zoom, function(exists) {
+        totalChecked++;
+        if (exists) {
+          foundTiles.push(tile);
+          console.log(`Found tile at ${tile.x}, ${tile.y}, zoom ${tile.zoom}`);
+        }
+        
+        // Update loading status
+        loadingElement.innerHTML = `Checking tiles: ${totalChecked}/${totalToCheck}`;
+        
+        // Check next tile
+        checkNextKnownTile(index + 1);
+      });
+    }
+    
+    // Start checking known tiles
+    checkNextKnownTile(0);
+    
+    // Finalize bounds and create overlay
+    function finalizeBounds() {
+      if (foundTiles.length > 0) {
+        // Calculate bounds from found tiles
+        var minX = Math.min(...foundTiles.map(t => t.x));
+        var maxX = Math.max(...foundTiles.map(t => t.x));
+        var minY = Math.min(...foundTiles.map(t => t.y));
+        var maxY = Math.max(...foundTiles.map(t => t.y));
+        
+        // Convert tile bounds to lat/lng bounds
+        var sw = tileToLatLng(minX, maxY + 1, zoom); // y is inverted in tile coordinates
+        var ne = tileToLatLng(maxX + 1, minY, zoom);
+        var preciseBounds = L.latLngBounds([sw.lat, sw.lng], [ne.lat, ne.lng]);
+        
+        // Update map bounds
+        map.setMaxBounds(preciseBounds.pad(0.1));
+        map.fitBounds(preciseBounds);
+        
+        // Create and add overlay with precise bounds
+        overlayLayer = L.tileLayer('https://lqtue.github.io/cangiomap/tiles/{z}/{x}/{y}.png', {
+          attribution: 'Overlay &copy; Cangio Project',
+          minZoom: 10,
+          maxZoom: 16,
+          opacity: 0.75,
+          bounds: preciseBounds,
+          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+        }).addTo(map);
+        
+        // Add layer control
+        var baseMaps = { "ESRI Satellite": baseLayer };
+        var overlayMaps = { "Cangio Overlay": overlayLayer };
+        L.control.layers(baseMaps, overlayMaps).addTo(map);
+        
+        // Set up opacity control
+        var opacitySlider = document.getElementById('opacity-slider');
+        var opacityValue = document.getElementById('opacity-value');
+        opacitySlider.addEventListener('input', function() {
+          var value = this.value;
+          overlayLayer.setOpacity(value);
+          opacityValue.textContent = value;
+        });
+        
+        // Update info panel
+        infoPanel.innerHTML = `
+          Found ${foundTiles.length} tiles.<br>
+          Tile range: X: ${minX}-${maxX}, Y: ${minY}-${maxY}<br>
+          Bounds: SW: ${sw.lat.toFixed(4)},${sw.lng.toFixed(4)} | 
+                  NE: ${ne.lat.toFixed(4)},${ne.lng.toFixed(4)}
+        `;
+      } else {
+        // No tiles found
+        infoPanel.innerHTML = `
+          No tiles found at the expected locations.<br>
+          Please verify that tiles exist at:<br>
+          https://lqtue.github.io/cangiomap/tiles/12/x/y.png
+        `;
+        
+        // Try with alternative path patterns
+        var altPaths = [
+          'https://lqtue.github.io/cangiomap/Tiles/12_webmerc/{z}/{x}/{y}.png',
+          'https://lqtue.github.io/cangiomap/Tiles/{z}/{x}/{y}.png',
+          'https://lqtue.github.io/cangiomap/tiles/{z}/{y}/{x}.png'
+        ];
+        
+        // Add a generic overlay with the initial bounds
+        overlayLayer = L.tileLayer(altPaths[0], {
+          attribution: 'Overlay &copy; Cangio Project',
+          minZoom: 10,
+          maxZoom: 16,
+          opacity: 0.75,
+          bounds: initialBounds,
+          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+        }).addTo(map);
+        
+        // Add layer switcher for alternative paths
+        var baseMaps = { "ESRI Satellite": baseLayer };
+        var overlayMaps = {
+          "Try Path 1": L.tileLayer(altPaths[0], {
+            opacity: 0.75, 
+            bounds: initialBounds,
+            errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+          }),
+          "Try Path 2": L.tileLayer(altPaths[1], {
+            opacity: 0.75, 
+            bounds: initialBounds,
+            errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+          }),
+          "Try Path 3": L.tileLayer(altPaths[2], {
+            opacity: 0.75, 
+            bounds: initialBounds,
+            errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+          })
+        };
+        L.control.layers(baseMaps, overlayMaps).addTo(map);
+      }
+      
+      // Hide loading element
+      loadingElement.style.display = 'none';
+    }
+  }
+  
+  // Start detecting available tiles
+  findAvailableTiles();
 </script>
 </body>
 </html>

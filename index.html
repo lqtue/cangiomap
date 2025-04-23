@@ -18,23 +18,28 @@
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-  // Initialize map centered on Can Gio area
+  // Initialize map
   var map = L.map('map', {
-    center: [10.4, 106.8],
-    zoom: 13,
     zoomControl: true
   });
 
-  // Add ESRI World Imagery base layer
-  var esriImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  // Fit map to your raster bounds (SW and NE corners)
+  var bounds = L.latLngBounds(
+    [10.3362, 106.8605], // Southwest corner (lower-left)
+    [10.4206, 107.0123]  // Northeast corner (upper-right)
+  );
+  map.fitBounds(bounds);
+
+  // ESRI base layer
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; ESRI, NASA, NGA',
     maxZoom: 19
   }).addTo(map);
 
-  // Add your custom overlay tiles
-  var customOverlay = L.tileLayer('https://lqtue.github.io/cangiomap/tiles/{z}/{x}/{y}.png', {
-    attribution: 'Overlay: Cangio custom tiles',
-    minZoom: 3,
+  // Your overlay tiles
+  L.tileLayer('https://lqtue.github.io/cangiomap/tiles/{z}/{x}/{y}.png', {
+    attribution: 'Cangio overlay',
+    minZoom: 10,
     maxZoom: 16,
     opacity: 0.75,
     errorTileUrl: 'https://via.placeholder.com/256/ffcccc?text=No+Tile'
